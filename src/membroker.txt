@@ -1,0 +1,91 @@
+Membroker Overview
+
+1. Introduction
+
+Membroker allows processes to cooperatively share memory pages among each other. This allows the firmware to efficiently transfer memory resources where they are needed and avoid out-of-memory conditions. It consists of a server application(mbserver) that acts as the hub of the system, and a number of client processes, each of which has its own allocator backed by a pool of memory pages. Clients can give and receive memory pages to/from the membroker hub.
+
+2. Client Types
+
+There are three different types of clients:
+
+      2.1. Normal clients must always initiate communication with membroker. They may request pages and return pages when they are no longer needed, but membroker may not unilaterally ask a normal client for pages.
+
+      2.2. Bidirectional clients can accept unsolicited commands from membroker at any time, such as requests to share pages with another client, in addition to being able to request and return memory on their own behalf.
+
+      2.3. Source clients are a special type of bidirectional client that possess pages that they did not receive from membroker. They are the only clients that can act as net contributors to the membroker page pool and must specify the maximum number of pages they are capable of sharing when they register with the membroker server.
+
+3. Requests
+
+When a client needs more pages, it can request them from membroker. If membroker does not already have pages to satisfy the request, it will attempt to acquire them from other clients. Each client can only have one outstanding request in membroker. Additional requests submitted by the same client to membroker before it replies to the current request will be discarded.
+
+    3.1. Anxiety Levels
+
+    Clients can request pages at two different anxiety levels, depending on how badly they need the memory:
+
+        3.1.1. REQUEST (low anxiety) will only attempt to acquire easily recoverable pages from other clients. It will only block for a "short", finite amount of time and may return fewer pages than were requested.
+
+        3.1.2. RESERVE (high anxiety) will make every possible effort to acquire the full number of requested pages. It may block indefinitely waiting for pages to be freed by another client and it will either return the total requested pages or none at all.
+
+    3.2. Queue
+
+    If membroker cannot immediately satisfy a request with pages in its pool, it will place the request on a FIFO request queue while it attempts to acquire more pages from other clients. In general, each client capable of sharing pages will be queried at most once. Once the request has been satisfied, or membroker has exhausted the list of clients from which it could acquire pages, it will be removed from the queue and the pages returned to the requesting client.
+
+    3.3. Page Sharing
+
+    As long as the membroker queue contains one or more active requests, membroker will attempt to acquire pages to satisfy them by asking other clients to share pages. The following rules define the clients membroker will ask for pages and the conditions under which it will ask, for a given request. Note that the set of client membroker queries will depend not only on the request itself but the state of membroker and all its clients during the request.
+
+        3.3.1. Membroker will never allow more than one outstanding share request to a given client at a time. 
+
+        3.3.2. Membroker will allow each request to ask only one client at a time to share pages, since it may not be necessary to query additional clients if the full number of pages is returned. 
+
+        3.3.3. A client may be asked to share pages for several requests simultaneously, if the anxiety levels of the requests are the same. Membroker combines the pages needed by each request into a single share request.
+
+        3.3.4. Requestable clients are clients that membroker can ask to share pages. Membroker will never ask a non-requestable client for pages. A requestable client satisfies all the following conditions:
+
+	    3.3.4.1. It must be bidirectional
+
+	    3.3.4.2. It cannot be the requesting client
+
+	    3.3.4.3. It cannot already have responded to a share request from this request
+
+        3.3.5. A deferred client is a requestable client that cannot be queried at the moment because it is otherwise occupied. Membroker will not ask a deferred client for pages, but may come back to it later if its deferred status expires before the request is complete. Deferred clients include:
+
+	    3.3.5.1. Clients actively requesting pages
+
+	    3.3.5.2. Clients processing an outstanding request from membroker to share pages
+
+        3.3.6. A blocking client is a special case of a deferred client. Membroker will not ask a blocking client for memory while it is in a deferred state. However, it will leave the request active as long as the client is in the blocking-deferred state (i.e. the request blocks on the client's deferred status). This is in contrast to a non-blocking deferred client, which might never be asked to share for a given request if membroker runs out of other clients to query before it's deferred status expires. Blocking clients include:
+
+	    3.3.6.1. Clients requesting pages at a lower anxiety than the given request
+
+	    In practice this means that only a RESERVE request waiting on a REQUESTing client will block. In general it does not make sense to wait on a client for pages when that client is also trying to acquire pages at least as urgently. Furthermore, a REQUESTing client could block indefinitely waiting for a RESERVing client to finish.
+
+	    3.3.6.2. Clients processing an outstanding share request at an anxiety less than or equal to the given request
+
+	    In practice this means that only a REQUEST waiting on a client sharing pages for a RESERVE will not block, since the RESERVE could block indefinitely and the REQUEST should not.
+
+        3.3.7. Special Rules for Source Clients
+
+        Because source clients are most likely to maintain large pools of unused pages, membroker treats then somewhat differently than other clients.
+
+	    3.3.7.1. The order in which clients are asked to share pages for a given request is undefined, except that source clients (when available) are always given precedence over other clients.
+
+	    3.3.7.2. When attempting to satisfy a RESERVE request, membroker will first send a REQUEST to source clients, in the hope that pages can be obtained without a potentially lengthy RESERVE. If the REQUEST does not return enough pages, it will be followed by a RESERVE. This means a source client should never have an outstanding request to share pages at the RESERVE level unless it is truly low on easily accessible pages. This is important since a REQUESTing client will not block on a client sharing pages at the RESERVE level.
+
+4. Solicited Page Shares
+
+When a client is asked by membroker to share pages, it should attempt to free pages it owns in accordance with the anxiety level of the request and return those pages to membroker. When membroker receives shared pages from a client, it distributes them as follows:
+
+    4.1. Pages are distributed to each request on whose behalf membroker asked for the pages, starting with the oldest request. As long as they are available, enough pages are given to each request to complete it. 
+
+    4.2. If there are any pages leftover they are distributed according to the rules for unsolicited page returns (described below).
+
+5. Unsolicited Returned Pages
+
+When membroker receives an unsolicited return of pages from a client, it distributes them as follows:
+
+    5.1. Pages are distributed to each request in the queue, staring with the oldest. If available, enough pages are given to each request to complete it.
+
+    5.2. Any remaining pages are returned to source clients that have a net negative page balance (i.e. they have shared more pages with membroker than they have received from it). As long as they are available, enough pages are returned to each source client to bring its net page balance back to 0.
+
+    5.3. Any remaining pages are left in the membroker pool.
