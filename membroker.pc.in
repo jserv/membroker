@@ -8,5 +8,5 @@ Description: Client library for membroker server
 URL:
 Version: @VERSION@
 Requires:
-Libs: -L${libdir} -lmb
+Libs: -L${libdir} -lmembroker
 Cflags: -I${includedir}

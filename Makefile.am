@@ -7,8 +7,8 @@ noinst_LTLIBRARIES =
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = membroker.pc
 
-lib_LTLIBRARIES += libmb.la
-libmb_la_SOURCES = \
+lib_LTLIBRARIES += libmembroker.la
+libmembroker_la_SOURCES = \
 	src/mbcodec.c \
 	src/mbclient.c \
 	src/mb.h \
@@ -27,7 +27,7 @@ bin_PROGRAMS += mbserver
 mbserver_SOURCES = \
 	src/main.c \
 	src/mbserver.h
-mbserver_LDADD = libmbs.la libmb.la
+mbserver_LDADD = libmbs.la libmembroker.la
 
 noinst_PROGRAMS += mbctest
 mbctest_SOURCES = \
@@ -35,19 +35,19 @@ mbctest_SOURCES = \
 	src/mb.h
 	src/mbclient.h
 	src/mbprivate.h
-mbctest_LDADD = libmb.la
+mbctest_LDADD = libmembroker.la
 TESTS += mbctest
 
 noinst_PROGRAMS += mbtest
 mbtest_SOURCES = src/mbtest.c
-mbtest_LDADD = libmb.la
+mbtest_LDADD = libmembroker.la
 # This test fails
 #TESTS += mbtest
 
 noinst_PROGRAMS += test_main
 test_main_SOURCES = src/tests/main.c
 test_main_CFLAGS = -I$(srcdir)/src
-test_main_LDADD = libmb.la libmbs.la
+test_main_LDADD = libmembroker.la libmbs.la
 test_main_LDFLAGS = -lpthread
 UNITTESTS =
 UNITTESTS += initAndTerminate
