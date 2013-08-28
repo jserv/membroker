@@ -59,7 +59,7 @@ mb_encode_and_send(int id, int fd, MbCodes code, int param)
         int ret = send (fd, buf + total, size - total, MSG_NOSIGNAL);
         if (ret == -1 ){
             perror ("send");
-            return -1;
+            return MB_IO;
         }
         total += ret;
     }
@@ -77,18 +77,20 @@ mb_receive_and_decode(int fd, int* id, MbCodes* code, int* param)
     while (total < size){
         int ret = recv (fd, buf + total, size - total, 0);
         if (ret == -1 && errno != EINTR ) {
-            perror ("recv");
-            return -1;
+            perror("recv");  
+            return MB_IO;
         }
-        else if (ret == 0 && total == 0) return 0;
+        else if (ret == 0 && total == 0) {
+	    return MB_IO;
+	}
         if (ret > 0)
             total += ret;
     }
-
+    
     *id = (int)i32_decode (buf);
     *code = (int)i32_decode (&buf[sizeof(int)]);
     *param = (int)i32_decode (&buf[sizeof(int) *2]);
-
+    
     return total;
 }
 
@@ -100,9 +102,9 @@ mb_receive_response_and_decode(int fd, int id, MbCodes code, int* param)
     int ret = mb_receive_and_decode (fd, &ret_id, &ret_code, param);
     if (ret > 0) {
         if (ret_id != id)
-            ret = -2;
+            ret = MB_BAD_ID;
         else if(ret_code != code)
-            ret = -3;
+            ret = MB_BAD_CODE;
     }
     return ret;
 }

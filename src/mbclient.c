@@ -75,7 +75,8 @@ free_client(mbclient* client)
     mbclient * needle = &mb_default_client;
 
     while (needle){
-        if (needle->next == client ){
+        if (needle->next == client )
+        {
             needle->next = client->next;
             free(client);
             break;
@@ -84,56 +85,113 @@ free_client(mbclient* client)
     }
 }
 
+static MbError validate_send(MbCodes code, int param)
+{
+  MbError rc = MB_SUCCESS;
+
+  switch (code)
+  {
+      case REQUEST:
+      case RESERVE:
+      case RETURN:
+      case SHARE:
+      case AVAILABLE:
+          if (param < 0)
+              rc = MB_BAD_PARAM;
+          break;
+      case TERMINATE:
+      case STATUS:
+      case REGISTER:
+      case QUERY:
+      case QUERY_AVAILABLE:
+      case TOTAL:
+      case DENY:
+          break;
+      default:
+          rc = MB_BAD_CODE;
+          break;
+  };
+  return rc;
+}
+
+static MbError validate_receive(MbCodes code, int param)
+{
+    MbError rc = MB_SUCCESS;
+    
+    switch (code)
+    {
+        case REQUEST:
+        case RESERVE:
+        case RETURN:
+        case SHARE:
+        case TOTAL:
+        case AVAILABLE:
+            if (param < 0)
+                rc = MB_BAD_PARAM;
+            break;
+        case TERMINATE:
+        case QUERY:
+        case QUERY_AVAILABLE:
+            break;
+        case REGISTER:
+        case STATUS:
+        case DENY:
+        default:
+            rc = MB_BAD_CODE;
+            break;
+    };
+    return rc;
+}
+
 static inline int 
 create_uds(mbclient* client)
 {
     int fd = 0;
-
+    
     if (client->fd != 0)
         return client->fd;
-
+    
     fd = socket (AF_UNIX, SOCK_STREAM, 0);
-
-
+    
+    
     if (fd == -1){
         perror ("socket");
-        return -1;
+        return MB_IO;
     }
-
+    
     if (fcntl (fd, F_SETFD, FD_CLOEXEC) == -1){
         perror ("fcntl");
         close (fd);
-        return -1;
+        return MB_IO;
     }
-
-
+    
     client->fd = fd;
 
     return fd;
 }
 
-int
+static int
 contact(mbclient* client)
 {
     int fd = create_uds (client);
 
-    if (fd == -1) {
-        return -1;
-    }
+    if (fd == -1)
+        return MB_IO;
 
-    if (client->sock.sun_family != AF_UNIX) {
+    if (client->sock.sun_family != AF_UNIX) 
+    {
         char buf[1024];
         int pid = getpid ();
         int pid_fd;
         struct stat st_buff;
-
+        
         memset(buf, 0, sizeof(buf));
         snprintf (buf, sizeof(buf), "/proc/%d/cmdline", pid);
 
         pid_fd = open (buf, O_RDONLY);
-
+        
         memset (buf, 0, sizeof(buf));
-
+        
         if (pid_fd == -1){
             snprintf (buf, sizeof(buf), "unknown");
         } else {
@@ -146,47 +204,55 @@ contact(mbclient* client)
                     else bytes += rb;
                 } while(bytes < st_buff.st_size -1);
                 cmd = strrchr (buf, '/');
-
+                
                 if (cmd){
                     memmove (buf, cmd+1, strlen(cmd));
                 }
             }
             close (pid_fd);
         }
-
+        
         memset (&(client->sock), 0, sizeof(client->sock));
         client->sock.sun_family = AF_UNIX;
         mb_socket_name(&(client->sock.sun_path[0]), sizeof(client->sock.sun_path));
-
+        
         if (connect (fd, (struct sockaddr *) &(client->sock), sizeof (struct sockaddr_un)) == -1) {
             perror ("connect");
-            return -1;
+            return MB_IO;
         }
-
     }
 
-    
     return fd;
 }
 
-static inline int
+static int
 remote_page_request(mbclient* client, MbCodes type, int pages)
 {
-    int fd = contact (client);
-    int ret, param;
+    int fd;
+    int ret, param=0;
 
     if (client->is_bidi)
-        return -1;
-
-    if (fd == -1) 
-        return -1;
-
-    mb_encode_and_send (client->id, fd, type, pages);
-    ret = mb_receive_response_and_decode (fd, client->id, SHARE, &param);
-
-    if (ret <= 0 )
-        return ret;
-    client->pages += param;
+        return MB_BAD_CLIENT_TYPE;
+    
+    if (pages < 0)
+        return MB_BAD_PARAM;
+    
+    if (pages > 0) {
+        fd = contact(client);
+        
+	if (fd == -1)
+	    return MB_IO;
+	
+	if ((ret = mb_encode_and_send (client->id, fd, type, pages)) < 0)
+  	    return ret;
+	
+	ret = mb_receive_response_and_decode (fd, client->id, SHARE, &param);
+	
+	if (ret <= 0 )
+	    return ret;
+	
+	client->pages += param;
+    }
     return param;
 }
 
@@ -206,35 +272,48 @@ mb_client_reserve_pages(MbClientHandle client, int pages)
 int
 mb_client_return_pages(MbClientHandle client, int pages)
 {
-    int fd = create_uds ((mbclient*)client);
-
-    if(fd == -1)
-        return -1;
-
-    pages = min(pages, ((mbclient*)client)->pages);
-    ((mbclient*)client)->pages -= pages;
-    mb_encode_and_send (((mbclient*)client)->id, fd, RETURN, pages);
-    return 0;
+    int fd, ret=0;
+    
+    if (pages < 0)
+        return MB_BAD_PARAM;
+    
+    if (pages > 0) {
+        fd = create_uds ((mbclient*)client);
+        
+        if(fd == -1)
+            return MB_IO;
+    
+        pages = min(pages, ((mbclient*)client)->pages);
+        ((mbclient*)client)->pages -= pages;
+        ret = mb_encode_and_send (((mbclient*)client)->id, fd, RETURN, pages);
+    }
+    return ret;
 }
 int
 mb_client_terminate(MbClientHandle client)
 {
     int ret, param;
     MbCodes code;
-    int fd = create_uds ((mbclient*)client);
-
-    if(fd == -1) return -1;
-
+    int fd;
+    
+    fd = create_uds ((mbclient*)client);
+    
+    if(fd == -1)
+        return MB_IO;
+    
     ret = mb_encode_and_send (((mbclient*)client)->id, fd, TERMINATE, 0);
 
-    if (!ret) {
+    if (ret != 0) {
 	do {
 	    ret = mb_client_receive(client, &code, &param);
 	} while (ret > 0 && code != TERMINATE);
     }
-
+    
+    if (ret < 0)
+        return MB_IO;
+        
     close (fd);
-
+        
     ((mbclient*)client)->fd = 0;
     free_client(client);
     return 0;
@@ -242,28 +321,33 @@ mb_client_terminate(MbClientHandle client)
 int 
 mb_client_status(MbClientHandle client)
 {
-    int fd = contact ((mbclient*)client);
-
-    if (fd == -1) return -1;
-
-    mb_encode_and_send (((mbclient*)client)->id, fd, STATUS, 0);
-    return 0;
+    int fd;
+    
+    fd = contact ((mbclient*)client);
+    
+    if(fd == -1)
+        return MB_IO;
+    
+    return mb_encode_and_send (((mbclient*)client)->id, fd, STATUS, 0);
 }
 
 static int
 client_register(mbclient* client)
 {
     unsigned int arg;
-    int fd = contact (client);
+    int fd, ret;
 
-    if (fd == -1) 
-        return -1;
+    fd = contact (client);
+
+    if (fd == -1)
+        return MB_IO;
 
     client->source_pages &= 0x7fffffff;
 
     arg = (client->is_bidi << 31) | client->source_pages;
 
-    mb_encode_and_send (((mbclient*)client)->id, fd, REGISTER, arg);
+    if ((ret = mb_encode_and_send (((mbclient*)client)->id, fd, REGISTER, arg)) < 0)
+        return ret;
 
     if (!client->is_bidi)
         fd = 0;
@@ -293,18 +377,22 @@ mb_client_register(int id, int is_bidi)
     mbclient* client = get_client_by_id(id);
     if (client == NULL) {
         client = malloc(sizeof(mbclient));
+	if (client == NULL) {
+	    return NULL;
+	}
         memset(&(client->sock), 0, sizeof(struct sockaddr_un));
         client->id = id;
         client->pages = 0;
         client->source_pages = 0;
         client->fd = 0;
         client->is_bidi = is_bidi ? 1 : 0;
-        if (-1 == client_register(client)) {
+        if (client_register(client) < 0) {
             free (client);
             return NULL;
-        }
-        client->next = mb_default_client.next;
-        mb_default_client.next = client;
+        } else {
+	    client->next = mb_default_client.next;
+	    mb_default_client.next = client;
+	}
     } else {
         if (client->is_bidi != is_bidi)
             client = NULL;
@@ -317,18 +405,22 @@ mb_client_register_source(int id, int pages)
     mbclient* client = get_client_by_id(id);
     if (client == NULL) {
         client = malloc(sizeof(mbclient));
+	if (client == NULL) {
+	    return NULL;
+	}
         memset(&(client->sock), 0, sizeof(struct sockaddr_un));
         client->id = id;
         client->pages = pages;
         client->source_pages = pages < 0 ? 0 : pages;
         client->fd = 0;
         client->is_bidi = 1;
-        if (-1 == client_register(client)) {
+        if (client_register(client) < 0) {
             free(client);
             return NULL;
-        }
-        client->next = mb_default_client.next;
-        mb_default_client.next = client;
+        } else {
+	    client->next = mb_default_client.next;
+	    mb_default_client.next = client;
+	}
     } else {
         if (!(client->is_bidi != 1) || 
             client->source_pages != (unsigned int)pages)
@@ -339,40 +431,52 @@ mb_client_register_source(int id, int pages)
 int
 mb_client_query_server(MbClientHandle client)
 {
-    int fd = contact ((mbclient*)client);
     int ret, param;
-
+    int fd;
+    
     if (((mbclient*)client)->is_bidi)
-        return -1;
-
-    if (fd == -1) 
-        return -1;
-
-    mb_encode_and_send (((mbclient*)client)->id, fd, QUERY, 0);
+        return MB_BAD_PAGES + MB_BAD_CLIENT_TYPE;
+    
+    fd = contact ((mbclient*)client);
+    
+    if (fd == -1)
+        return MB_BAD_PAGES + MB_IO;
+    
+    
+    if ((ret = mb_encode_and_send (((mbclient*)client)->id, fd, QUERY, 0)) < 0)
+        return MB_BAD_PAGES + ret;
+    
     ret = mb_receive_response_and_decode (fd, ((mbclient*)client)->id, 
                                           QUERY, &param);
-    if (ret <= 0)
-        return ret;
+    
+    if (ret < 0)
+        return MB_BAD_PAGES + ret;
+
     return param;
 }
 int
 mb_client_query_total(MbClientHandle client)
 {
-    int fd = contact ((mbclient*)client);
     int ret, param;
-
+    int fd;
+    
     if (((mbclient*)client)->is_bidi)
-        return -1;
-
-    if (fd == -1) 
-        return -1;
-
-    mb_encode_and_send (((mbclient*)client)->id, fd, TOTAL, 0);
+        return MB_BAD_CLIENT_TYPE;
+    
+    fd = contact ((mbclient*)client);
+    
+    if (fd == -1)
+        return MB_IO;
+    
+    if ((ret = mb_encode_and_send (((mbclient*)client)->id, fd, TOTAL, 0)) < 0)
+        return ret;
+    
     ret = mb_receive_response_and_decode (fd, ((mbclient*)client)->id,
                                           TOTAL, &param);
+    
+    if (ret < 0)
+        param = ret;
 
-    if (ret <= 0)
-        return ret;
     return param;
 }
 int
@@ -402,26 +506,35 @@ int mb_client_is_bidi(MbClientHandle client)
 
 int mb_client_send(MbClientHandle client, MbCodes code, int param)
 {
-    int rc =  mb_encode_and_send(((mbclient*)client)->id, 
+    int rc = validate_send(code, param);
+
+    if (rc < 0)
+        return rc;
+
+    rc =  mb_encode_and_send(((mbclient*)client)->id, 
                                  ((mbclient*)client)->fd,
                                  code, param);
+
     if (!rc && (code == RETURN || code == SHARE))
         ((mbclient*)client)->pages -= param;
-        
+      
     return rc;
 }
 
 int mb_client_receive(MbClientHandle client, MbCodes* code, int* param)
 {
     int id;
-    int ret = mb_receive_and_decode(((mbclient*)client)->fd, 
+    int ret;
+
+    ret = mb_receive_and_decode(((mbclient*)client)->fd, 
                                     &id, code, param);
-    if (!ret) {
-        if (id != ((mbclient*)client)->id)
-            ret = -2;
+    if (ret > 0) {
+         if (id != ((mbclient*)client)->id)
+	     ret = MB_BAD_ID;
+	 else if (!(ret = validate_receive(*code, *param)) &&
+                  (*code == SHARE || *code == RETURN)) 
+             ((mbclient*)client)->pages += *param;
     }
-    if (ret > 0 && (*code == SHARE || *code == RETURN))
-        ((mbclient*)client)->pages += *param;
 
     return ret;
 }

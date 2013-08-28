@@ -31,6 +31,7 @@ extern "C"
 {
 #endif
 
+#include <stdint.h>
 
 typedef enum{
     INVALID=0,
@@ -48,6 +49,18 @@ typedef enum{
     DENY,
     NUM_MB_CODES
 }MbCodes; 
+
+typedef enum {
+    MB_SUCCESS=0,
+    MB_OUT_OF_MEMORY = -1,
+    MB_BAD_CLIENT_TYPE = -2,
+    MB_IO = -3,
+    MB_BAD_ID = -4,
+    MB_BAD_CODE = -5,
+    MB_BAD_PARAM = -6,
+    MB_LAST_ERROR_CODE = MB_BAD_PARAM,
+    MB_BAD_PAGES = (int32_t)(0x80000000) - MB_LAST_ERROR_CODE
+} MbError;
 
 #ifdef __cplusplus
 }
