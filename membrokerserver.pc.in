@@ -1,0 +1,10 @@
+prefix=@prefix@
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: membrokerserver
+Description: Memory Broker Service service library, for unit testing
+Version: 1.0
+Requires: membroker
+Libs: -L${libdir} -lmbs
+Cflags: -I${includedir}

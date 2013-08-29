@@ -25,5 +25,5 @@ AC_CHECK_LIB(pthread, pthread_create)
 # Reset LIBS. Don't want pthread on every link line
 LIBS=
 
-AC_CONFIG_FILES(Makefile membroker.pc src/membroker.service)
+AC_CONFIG_FILES(Makefile membroker.pc membrokerserver.pc src/membroker.service)
 AC_OUTPUT
