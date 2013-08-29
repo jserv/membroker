@@ -22,6 +22,7 @@
  * Commercial licensing is available. See the file COPYING for contact
  * information.
  */
+#define _GNU_SOURCE     /* so we can use struct ucred from sys/socket.h */
 #include "mb.h"
 #include "mbprivate.h"
 #include "mbserver.h"
@@ -86,6 +87,7 @@ struct request;
 
 struct client{
     int flags;
+    int pid;    /* socket-reported pid of client */
     int id;     /* client-supplied id */
     int fd;
     int pages;
@@ -351,11 +353,31 @@ create_client (Server * server, int id, int fd, const char * path, unsigned int 
     char buf[1024];
     int pid_fd;
 
+    struct ucred credentials;
+    socklen_t cred_len = sizeof (credentials);
+
     if (!client)
         exit (1);
 
+    /* The id that comes in the client message may or may not actually be
+     * the pid of the client; if the client used the "new" api, he may have
+     * used some random number.  We want the real pid so we can provide
+     * useful debug and potentially do some credientials verification.
+     * Ask the kernel for that info.  Note that this only works because
+     * we're using unix domain sockets.
+     */
+    memset (&credentials, 0, cred_len);
+    if (0 != getsockopt (fd, SOL_SOCKET, SO_PEERCRED, &credentials, &cred_len)) {
+        /* We lived without this info for a long time, let's not bail out
+         * just yet...  but spit out a nastygram. */
+        printf ("Membroker WARNING: could not get credentials from socket %d: %s\n",
+                fd, strerror (errno));
+    }
+
+    client->pid = credentials.pid;
+
     memset (buf, 0, sizeof(buf));
-    snprintf (buf, sizeof(buf), "/proc/%d/cmdline", id);
+    snprintf (buf, sizeof(buf), "/proc/%d/cmdline", client->pid);
 
     pid_fd = open (buf, O_RDONLY);
 
