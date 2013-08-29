@@ -7,6 +7,8 @@ noinst_LTLIBRARIES =
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = membroker.pc
 
+systemdsystemunit_DATA = src/membroker.service src/membroker.socket
+
 lib_LTLIBRARIES += libmembroker.la
 libmembroker_la_SOURCES = \
 	src/mbcodec.c \

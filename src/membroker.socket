@@ -1,0 +1,15 @@
+# socket activation support for membroker
+
+[Socket]
+
+# Membroker supports exactly one connection, a unix domain socket.
+# (The debug fifo doesn't cause activation.)
+
+# If we could use environment variables, it would be like this:
+#ListenStream=${LXK_RUNTIME_DIR}/membroker
+ListenStream=/var/tmp/membroker
+SocketMode=0666
+
+
+[Install]
+WantedBy=sockets.target

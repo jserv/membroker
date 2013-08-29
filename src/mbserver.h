@@ -32,6 +32,7 @@ extern "C"
 struct server;
 
 struct server* mbs_init();
+struct server * mbs_init_with_fd (int fd);
 void mbs_set_pages(struct server* server, int pages);
 void* mbs_main(void* param);
 void mbs_shutdown(struct server* server);

@@ -1,0 +1,10 @@
+
+[Unit]
+Description=Memory Broker Service
+Requires=membroker.socket
+
+[Service]
+# Needed for LXK_RUNTIME_DIR environment variable
+EnvironmentFile=/etc/dirs_environment
+
+ExecStart=@bindir@/mbserver

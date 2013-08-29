@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <signal.h>
 
+#if HAVE_SYSTEMD
+#include <systemd/sd-daemon.h>
+#endif
+
 #define UNUSED __attribute__((unused))
 
 static const char * program;
@@ -17,16 +21,27 @@ signal_sink (int signum)
 int
 main (int argc UNUSED, char ** argv)
 {
-    int rc;
-    struct server * server = mbs_init ();
-    if (!server)
-        exit (1);
+    void *rc;
+    struct server* server;
+    int server_fd = -1;
 
     program = argv[0];
+
+#if HAVE_SYSTEMD
+    if (sd_listen_fds (true) > 0) {
+        /* there should be exactly 1 fd waiting for us. */
+	server = mbs_init_with_fd (SD_LISTEN_FDS_START);
+    } else
+#endif
+        server = mbs_init (server_fd);
+
+    if (! server)
+        exit (EXIT_FAILURE);
+
     signal (SIGSEGV, signal_sink);
     signal (SIGBUS, signal_sink);
 
-    rc = (int) mbs_main (server);
+    rc = mbs_main (server);
     free (server);
-    return rc;
+    return (rc != NULL);
 }

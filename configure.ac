@@ -10,10 +10,20 @@ LT_INIT
 AC_PROG_CC
 AM_PROG_CC_C_O
 
+# systemd
+PKG_PROG_PKG_CONFIG
+AC_ARG_WITH([systemdsystemunitdir],
+            AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files]),
+            [], [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
+if test "x$with_systemdsystemunitdir" != xno; then
+AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
+fi
+AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno])
+
 # Checks for libraries.
 AC_CHECK_LIB(pthread, pthread_create)
 # Reset LIBS. Don't want pthread on every link line
 LIBS=
 
-AC_CONFIG_FILES(Makefile membroker.pc)
+AC_CONFIG_FILES(Makefile membroker.pc src/membroker.service)
 AC_OUTPUT

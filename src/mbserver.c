@@ -24,6 +24,7 @@
  */
 #include "mb.h"
 #include "mbprivate.h"
+#include "mbserver.h"
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -872,29 +873,53 @@ process_connection(Server * server, int fd)
 Server *
 mbs_init()
 {
-    Server* server = initialize_server ();
+    struct sockaddr_un addr;
 
-    server->client_listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-
-    if (server->client_listen_fd == -1)
-    {
-        perror("socket");
+    int fd = socket (AF_UNIX, SOCK_STREAM, 0);
+    if (fd == -1) {
+        perror ("socket");
         return NULL;
     }
 
-    memset (&(server->sock), 0, sizeof(server->sock));
-    server->sock.sun_family = AF_UNIX;
-    mb_socket_name(&(server->sock.sun_path[0]), sizeof(server->sock.sun_path));
+    memset (&addr, 0, sizeof (addr));
+    addr.sun_family = AF_UNIX;
+    mb_socket_name (&addr.sun_path[0], sizeof (addr.sun_path));
+    unlink (&addr.sun_path[0]);
 
-    unlink(&(server->sock.sun_path[0]));
-    if (bind (server->client_listen_fd, (struct sockaddr *) &(server->sock), sizeof(server->sock)) == -1){
+    if (bind (fd, (struct sockaddr *) &addr, sizeof (addr)) == -1){
         perror ("bind");
         return NULL;
     }
 
-    if (listen (server->client_listen_fd, 20) == -1) {
+    if (listen (fd, 20) == -1) {
         perror ("listen");
         return (NULL);
+    }
+
+    return mbs_init_with_fd (fd);
+}
+
+Server*
+mbs_init_with_fd (int fd)
+{
+    Server* server = initialize_server ();
+    socklen_t socklen;
+
+    server->client_listen_fd = fd;
+
+    if (server->client_listen_fd == -1) {
+        fprintf (stderr, "mbserver: invalid fd\n");
+        return NULL;
+    }
+
+    socklen = sizeof (server->sock);
+    if (0 != getsockname (server->client_listen_fd, (struct sockaddr *)&server->sock, &socklen)) {
+        perror ("getsockname");
+        return NULL;
+    }
+    if (server->sock.sun_family != AF_UNIX) {
+        fprintf (stderr, "Bad file descriptor passed to mbs_init_with_fd() -- not a unix domain socket\n");
+        return NULL;
     }
 
 
