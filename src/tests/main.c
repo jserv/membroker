@@ -113,7 +113,7 @@ static void* clientThread(void* param)
 
             ret = mb_client_receive (tc->client, &code, &pages);
 
-	    FAIL_UNLESS(ret == 0);
+            FAIL_UNLESS(ret == 0);
 
             printf("Client %d received code %s(%d)\n", 
                    mb_client_id(tc->client),
@@ -1146,6 +1146,7 @@ int testDumpDebug()
 {
     TestClient* source = createTestClient(1, 1, 10);
     TestClient* sink = createTestClient(2, 0, 0);
+
     MbCodes code;
     int param, rc;
     int debug_client;
@@ -1154,27 +1155,23 @@ int testDumpDebug()
     const char * socket_dir;
 
     // Client issues request while request already active
+
+    // Making source pages reservable only ensures that mbserver must
+    // query the source twice for pages and ensures that it will see the
+    // second request before the first one is complete.
+    source->requestable_pages = 0;
+    source->reservable_pages = 10;
+
     flushClient(source);
     flushClient(sink);
 
     pauseClient(source);
 
-    mb_client_send(sink->client, REQUEST, 1);
+    mb_client_send(sink->client, RESERVE, 1);
 
-    mb_client_send(sink->client, REQUEST, 2);
+    mb_client_send(sink->client, RESERVE, 2);
 
-    resumeClient(source);
-
-    rc = mb_client_receive(sink->client, &code, &param);
-    
-    FAIL_UNLESS(rc == 0);
-    FAIL_UNLESS(page_count(sink) == 1);
-    FAIL_UNLESS(code == SHARE);
-    FAIL_UNLESS(param == 1);
-
-    flushClient(sink);
-
-
+    // Submit a debug request in the middle of this transaction
     debug_client = socket (AF_UNIX, SOCK_STREAM, 0);
     assert (debug_client > -1);
     memset (&debug_addr, 0, sizeof (debug_addr));
@@ -1197,6 +1194,19 @@ int testDumpDebug()
         fwrite (buf, n_read, 1, stdout);
     } while (n_read > 0);
     close (debug_client);
+
+    // Now allow the transaction to complete
+    resumeClient(source);
+
+    rc = mb_client_receive(sink->client, &code, &param);
+    
+    FAIL_UNLESS(rc == 0);
+    FAIL_UNLESS(page_count(sink) == 1);
+    FAIL_UNLESS(code == SHARE);
+    FAIL_UNLESS(param == 1);
+
+    flushClient(sink);
+    flushClient(source);
 
     terminateTestClient(source);
     terminateTestClient(sink);
