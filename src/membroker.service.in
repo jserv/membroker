@@ -4,6 +4,8 @@ Description=Memory Broker Service
 Requires=membroker.socket
 
 [Service]
+# Every process needs have permission to connect to the socket
+UMask=0
 # Needed for LXK_RUNTIME_DIR environment variable
 EnvironmentFile=/etc/dirs_environment
 

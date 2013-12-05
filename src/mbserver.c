@@ -944,6 +944,7 @@ mbs_init_with_fd (int fd)
         return NULL;
     }
 
+    chmod(server->sock.sun_path, 0777);
 
     /* Set up debug / status info socket as a side channel.  We don't do this
      * over the main channel because we stream out lots of data for debug,
