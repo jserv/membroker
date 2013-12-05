@@ -180,38 +180,6 @@ contact(mbclient* client)
 
     if (client->sock.sun_family != AF_UNIX) 
     {
-        char buf[1024];
-        int pid = getpid ();
-        int pid_fd;
-        struct stat st_buff;
-        
-        memset(buf, 0, sizeof(buf));
-        snprintf (buf, sizeof(buf), "/proc/%d/cmdline", pid);
-
-        pid_fd = open (buf, O_RDONLY);
-        
-        memset (buf, 0, sizeof(buf));
-        
-        if (pid_fd == -1){
-            snprintf (buf, sizeof(buf), "unknown");
-        } else {
-            char * cmd;
-            int bytes = 0;
-            if (0 == fstat (pid_fd, &st_buff)) {
-                do{
-                    int rb = read (pid_fd, &buf[bytes], sizeof(buf));
-                    if (rb <= 0 && errno == 0) break;
-                    else bytes += rb;
-                } while(bytes < st_buff.st_size -1);
-                cmd = strrchr (buf, '/');
-                
-                if (cmd){
-                    memmove (buf, cmd+1, strlen(cmd));
-                }
-            }
-            close (pid_fd);
-        }
-        
         memset (&(client->sock), 0, sizeof(client->sock));
         client->sock.sun_family = AF_UNIX;
         mb_socket_name(&(client->sock.sun_path[0]), sizeof(client->sock.sun_path));
