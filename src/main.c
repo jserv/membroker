@@ -25,6 +25,8 @@ main (int argc UNUSED, char ** argv)
     struct server* server;
     int server_fd = -1;
 
+    setlinebuf(stdout);
+
     program = argv[0];
 
 #if HAVE_SYSTEMD
