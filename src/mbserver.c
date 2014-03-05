@@ -952,7 +952,7 @@ process_connection(Server * server, int fd)
                 break;
 
             case TERMINATE:
-                printf ("mbserver: client (%d)-\"%s\" terminated, reclaimed %d pages\n", client->id, client->cmdline, client->pages);
+                fprintf (server->fp, "mbserver: client (%d)-\"%s\" terminated, reclaimed %d pages\n", client->id, client->cmdline, client->pages);
 		mb_encode_and_send (id, fd, TERMINATE, 0);
                 free_client (server, client);
                 update_server(server);
@@ -970,7 +970,7 @@ process_connection(Server * server, int fd)
                 mb_encode_and_send (id, fd, QUERY, server->pages);
                 break;
             case REGISTER:
-                printf ("mbserver: Register client (%d)-\"%s\"\n", client->id, client->cmdline);
+                fprintf (server->fp, "mbserver: Register client (%d)-\"%s\"\n", client->id, client->cmdline);
                 break;
             case TOTAL:
                 mb_encode_and_send(id, fd, TOTAL, get_total_pages(server));
@@ -1165,7 +1165,7 @@ mbs_main(void* param)
                     if (-1 == process_connection (server, i)){
                         Client * client = get_client_by_fd (server, i);
                         if (client) {
-                            printf ("non terminus close - (%d)-\"%s\"\n", client->id, client->cmdline);
+                            fprintf (server->fp, "non terminus close - (%d)-\"%s\"\n", client->id, client->cmdline);
                             free_client (server, client);
                             update_server(server);
                         }
