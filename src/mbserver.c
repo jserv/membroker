@@ -919,9 +919,8 @@ process_connection(Server * server, int fd)
                     server->pages -= val;
                     client->pages += val;
                     mb_encode_and_send (id, fd, SHARE, val);
-                  /*  fprintf (server->fp, "Immediate Request processed: %s (%d) - %d\n",
+                    fprintf (server->fp, "Immediate Request processed: %s (%d) - SHARE %d\n",
                              client->cmdline, client->id, val);
-                             */
                 } else {
                     add_request (server, client, val, (MbCodes)op);
                     update_server(server);
