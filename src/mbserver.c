@@ -800,6 +800,7 @@ initialize_server()
 #else
     server->fp = stdout;
 #endif
+    setlinebuf (server->fp);
 
     fprintf (server->fp, "Initialized membroker with %d pages\n", server->pages);
 
