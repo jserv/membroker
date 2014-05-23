@@ -350,7 +350,7 @@ create_client (Server * server, int id, int fd, const char * path, unsigned int 
 {
     Client * client = (Client *) calloc (1, sizeof (*client));
 
-    char buf[1024];
+    char buf[1025];
     int pid_fd;
 
     struct ucred credentials;
@@ -390,11 +390,13 @@ create_client (Server * server, int id, int fd, const char * path, unsigned int 
         struct stat st_buff;
 
         if (0 == fstat ( pid_fd, &st_buff) ) {
+            int length = min((int)sizeof(buf)-1, st_buff.st_size);
             do{
-                int rb = read (pid_fd, &buf[bytes], sizeof(buf));
+                int rb = read (pid_fd, &buf[bytes], length);
                 if (rb <= 0 && errno == 0) break;
-                else bytes += rb;
-            } while(bytes < st_buff.st_size -1);
+                bytes += rb;
+                length -= rb;
+            } while(length);
             cmd = strrchr (buf, '/');
 
             if (cmd){
