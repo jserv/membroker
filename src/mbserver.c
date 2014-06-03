@@ -430,7 +430,10 @@ create_client (Server * server, int id, int fd, unsigned int param)
     socklen_t cred_len = sizeof (credentials);
 
     if (!client)
+    {
+        perror("create_client(): calloc()\n");
         exit (1);
+    }
 
     /* The id that comes in the client message may or may not actually be
      * the pid of the client; if the client used the "new" api, he may have
@@ -500,7 +503,7 @@ create_client (Server * server, int id, int fd, unsigned int param)
     client->cmdline = strdup (buf);
     if (client->cmdline == NULL)
     {
-        perror("create_client(): error allocating cmdline");
+        perror("create_client(): strdup()");
         exit(1);
     }
     client->share_type = INVALID;
@@ -608,8 +611,11 @@ add_request (Server * server, Client * client, int pages, MbCodes op)
     Request * last = server->queue;
     Request * request = (Request *) malloc (sizeof (*request));
 
-    if (!request) exit (10);
-
+    if (!request)
+    {
+        perror("add_request(): malloc");
+        exit (10);
+    }
     request->needed_pages = (unsigned)pages;
     request->acquired_pages = 0;
     request->requesting_client = client;
@@ -718,8 +724,6 @@ process_solicited_pages(Server* server, Client* client, int shared_pages)
         request = request->next;
     }
     clear_share(client);
-
-    request = server->queue;
 
     give_server_pages(server, shared_pages);
 
