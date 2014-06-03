@@ -74,6 +74,11 @@ free_client(mbclient* client)
 {
     mbclient * needle = &mb_default_client;
 
+    client->fd = 0;
+    client->id = 0;
+    client->pages = 0;
+    client->source_pages = 0;
+    
     while (needle){
         if (needle->next == client )
         {
@@ -281,8 +286,8 @@ mb_client_terminate(MbClientHandle client)
         return MB_IO;
         
     close (fd);
+    
         
-    ((mbclient*)client)->fd = 0;
     free_client(client);
     return 0;
 }
