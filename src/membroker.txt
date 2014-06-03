@@ -2,13 +2,13 @@ Membroker Overview
 
 1. Introduction
 
-Membroker allows processes to cooperatively share memory pages among each other. This allows the firmware to efficiently transfer memory resources where they are needed and avoid out-of-memory conditions. It consists of a server application(mbserver) that acts as the hub of the system, and a number of client processes, each of which has its own allocator backed by a pool of memory pages. Clients can give and receive memory pages to/from the membroker hub.
+Membroker allows processes to cooperatively share memory pages among each other. This allows the firmware to efficiently transfer memory resources where they are needed in order to maximize performance and avoid out-of-memory conditions. It consists of a server application (mbserver) that acts as the hub of the system, and a number of client processes, each of which has its own allocator backed by a pool of memory pages. Clients can give/receive memory pages to/from the membroker hub.
 
 2. Client Types
 
 There are three different types of clients:
 
-      2.1. Normal clients must always initiate communication with membroker. They may request pages and return pages when they are no longer needed, but membroker may not unilaterally ask a normal client for pages.
+      2.1. Sink clients must always initiate communication with membroker. They may request pages and return pages when they are no longer needed, but membroker may not unilaterally ask a sink client for pages.
 
       2.2. Bidirectional clients can accept unsolicited commands from membroker at any time, such as requests to share pages with another client, in addition to being able to request and return memory on their own behalf.
 
@@ -34,7 +34,7 @@ When a client needs more pages, it can request them from membroker. If membroker
 
     As long as the membroker queue contains one or more active requests, membroker will attempt to acquire pages to satisfy them by asking other clients to share pages. The following rules define the clients membroker will ask for pages and the conditions under which it will ask, for a given request. Note that the set of client membroker queries will depend not only on the request itself but the state of membroker and all its clients during the request.
 
-        3.3.1. Membroker will never allow more than one outstanding share request to a given client at a time. 
+        3.3.1. Membroker will never allow more than one outstanding share query to a given client at a time. 
 
         3.3.2. Membroker will allow each request to ask only one client at a time to share pages, since it may not be necessary to query additional clients if the full number of pages is returned. 
 
@@ -46,13 +46,13 @@ When a client needs more pages, it can request them from membroker. If membroker
 
 	    3.3.4.2. It cannot be the requesting client
 
-	    3.3.4.3. It cannot already have responded to a share request from this request
+	    3.3.4.3. It cannot already have responded to a share query from this request
 
         3.3.5. A deferred client is a requestable client that cannot be queried at the moment because it is otherwise occupied. Membroker will not ask a deferred client for pages, but may come back to it later if its deferred status expires before the request is complete. Deferred clients include:
 
 	    3.3.5.1. Clients actively requesting pages
 
-	    3.3.5.2. Clients processing an outstanding request from membroker to share pages
+	    3.3.5.2. Clients processing an outstanding query from membroker to share pages
 
         3.3.6. A blocking client is a special case of a deferred client. Membroker will not ask a blocking client for memory while it is in a deferred state. However, it will leave the request active as long as the client is in the blocking-deferred state (i.e. the request blocks on the client's deferred status). This is in contrast to a non-blocking deferred client, which might never be asked to share for a given request if membroker runs out of other clients to query before it's deferred status expires. Blocking clients include:
 
@@ -60,7 +60,7 @@ When a client needs more pages, it can request them from membroker. If membroker
 
 	    In practice this means that only a RESERVE request waiting on a REQUESTing client will block. In general it does not make sense to wait on a client for pages when that client is also trying to acquire pages at least as urgently. Furthermore, a REQUESTing client could block indefinitely waiting for a RESERVing client to finish.
 
-	    3.3.6.2. Clients processing an outstanding share request at an anxiety less than or equal to the given request
+	    3.3.6.2. Clients processing an outstanding share query at an anxiety less than or equal to the given request
 
 	    In practice this means that only a REQUEST waiting on a client sharing pages for a RESERVE will not block, since the RESERVE could block indefinitely and the REQUEST should not.
 
@@ -68,9 +68,19 @@ When a client needs more pages, it can request them from membroker. If membroker
 
         Because source clients are most likely to maintain large pools of unused pages, membroker treats then somewhat differently than other clients.
 
-	    3.3.7.1. The order in which clients are asked to share pages for a given request is undefined, except that source clients (when available) are always given precedence over other clients.
+	    3.3.7.1. The order in which clients are asked to share pages for a given request is undefined, except that source clients (when available) are always asked to share pages before other clients.
 
-	    3.3.7.2. When attempting to satisfy a RESERVE request, membroker will first send a REQUEST to source clients, in the hope that pages can be obtained without a potentially lengthy RESERVE. If the REQUEST does not return enough pages, it will be followed by a RESERVE. This means a source client should never have an outstanding request to share pages at the RESERVE level unless it is truly low on easily accessible pages. This is important since a REQUESTing client will not block on a client sharing pages at the RESERVE level.
+	    3.3.7.2. When attempting to satisfy a RESERVE request, membroker will first send a REQUEST to source clients, in the hope that pages can be obtained quickly without a potentially lengthy RESERVE and the blocking that often accompanies it. If the REQUEST does not return enough pages, it will be followed by a RESERVE. This means a source client should never have an outstanding query to share pages at the RESERVE level unless it is truly low on easily accessible pages. This is important since a REQUESTing client will not block on a client sharing pages at the RESERVE level.
+
+    3.4. Termination
+
+    A request is terminated and removed from the queue when one of the following conditions is met:
+
+        3.4.1. Membroker has acquired all the pages needed by the request
+
+	3.4.2. All the clients registered with membroker are deferred with respect to this request (i.e. there are no non-deferred requestable clients or blocking clients).
+
+	3.4.3. The requesting client's connection to membroker is terminated, either explicitly, or through loss of communication.
 
 4. Solicited Page Shares
 
@@ -82,9 +92,9 @@ When a client is asked by membroker to share pages, it should attempt to free pa
 
 5. Unsolicited Returned Pages
 
-When membroker receives an unsolicited return of pages from a client, it distributes them as follows:
+When membroker receives an unsolicited return of pages from a client or has leftover shared pages, it distributes them as follows:
 
-    5.1. Pages are distributed to each request in the queue, staring with the oldest. If available, enough pages are given to each request to complete it.
+    5.1. Pages are distributed to each request in the queue, starting with the oldest. If available, enough pages are given to each request to complete it.
 
     5.2. Any remaining pages are returned to source clients that have a net negative page balance (i.e. they have shared more pages with membroker than they have received from it). As long as they are available, enough pages are returned to each source client to bring its net page balance back to 0.
 
