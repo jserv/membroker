@@ -345,7 +345,7 @@ request_pages (Server * server)
 
 
 static Client *
-create_client (Server * server, int id, int fd, const char * path, unsigned int param)
+create_client (Server * server, int id, int fd, unsigned int param)
 {
     Client * client = (Client *) calloc (1, sizeof (*client));
 
@@ -361,7 +361,7 @@ create_client (Server * server, int id, int fd, const char * path, unsigned int 
     /* The id that comes in the client message may or may not actually be
      * the pid of the client; if the client used the "new" api, he may have
      * used some random number.  We want the real pid so we can provide
-     * useful debug and potentially do some credientials verification.
+     * useful debug and potentially do some credentials verification.
      * Ask the kernel for that info.  Note that this only works because
      * we're using unix domain sockets.
      */
@@ -378,7 +378,9 @@ create_client (Server * server, int id, int fd, const char * path, unsigned int 
     memset (buf, 0, sizeof(buf));
     snprintf (buf, sizeof(buf), "/proc/%d/cmdline", client->pid);
 
-    pid_fd = open (buf, O_RDONLY);
+    do {
+        pid_fd = open (buf, O_RDONLY);
+    } while (pid_fd == -1 && errno == EINTR);
 
     if (pid_fd == -1) {
         memset (buf, 0, sizeof (buf));
@@ -392,9 +394,15 @@ create_client (Server * server, int id, int fd, const char * path, unsigned int 
             int length = min((int)sizeof(buf)-1, st_buff.st_size);
             do{
                 int rb = read (pid_fd, &buf[bytes], length);
-                if (rb <= 0 && errno == 0) break;
-                bytes += rb;
-                length -= rb;
+                if (rb < 0 && errno == EINTR) 
+                    continue;
+                if (rb > 0)
+                {
+                    bytes += rb;
+                    length -= rb;
+                }
+                else
+                    break;
             } while(length);
             cmd = strrchr (buf, '/');
 
@@ -416,6 +424,11 @@ create_client (Server * server, int id, int fd, const char * path, unsigned int 
         set_normal(client);
 
     client->cmdline = strdup (buf);
+    if (client->cmdline == NULL)
+    {
+        perror("create_client(): error allocating cmdline");
+        exit(1);
+    }
     client->share_type = INVALID;
 
     // Put source clients at front of list, others at the back
@@ -436,8 +449,6 @@ create_client (Server * server, int id, int fd, const char * path, unsigned int 
     }
 
     server->updates |= CLIENT_REQUEST;
-    
-    path=path;
 
     return client;
 }
@@ -781,28 +792,27 @@ dump_status (Server * server,
 static inline int
 process_connection(Server * server, int fd)
 {
-    struct sockaddr_storage peer;
     int ret;
     int id;
     MbCodes op;
     int val;
     Client * client; 
-
-
     ret = mb_receive_and_decode (fd, &id, &op, (int*)&val);
     if (ret <= 0){
         return -1;
     } else {
         client = get_client_by_id (server, id);
-
-        memset (&peer, 0, sizeof (struct sockaddr_storage));
-        if (!client && op == REGISTER){ 
-            struct sockaddr_un * un = (struct sockaddr_un *) &peer;
-            client = create_client (server, id, fd,  &un->sun_path[1], val);
-            update_server(server);
-        } else if (!client) {
-            fprintf(server->fp, "Unexpected op - non registered client\n");
-            return 0;
+        
+        if (!client)
+        {
+            if (op == REGISTER){
+                client = create_client (server, id, fd, val);
+                update_server(server);
+            } else {
+                fprintf(server->fp, "Bad registration op %s\n", 
+                        mb_code_name(op));
+                return 0;
+            }
         }
 
         if (op == DENY) {
