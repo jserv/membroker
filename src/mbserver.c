@@ -45,6 +45,15 @@
 #define min(a,b) ((a) < (b)) ? (a) : (b)
 #define max(a,b) ((a) > (b)) ? (a) : (b)
 
+#if defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0
+#if defined(_POSIX_MONOTONIC_CLOCK) && (_POSIX_MONOTONIC_CLOCK >= 0)
+#define MB_GET_TIME(t) clock_gettime(CLOCK_MONOTONIC, (t))
+#else 
+#define MB_GET_TIME(t) clock_gettime(CLOCK_REALTIME, (t))
+#endif
+#else
+#define MB_GET_TIME(t) { time(&((t)->tv_sec)); t->tv_nsec=0; }
+#endif
 #define LOGFILE 0
 
 static const char * const logfile = "mbserver.log";
@@ -117,7 +126,7 @@ struct request {
     Client * sharing_client;
     ClientNode* responded_clients;
     struct request * next;
-    time_t stamp;
+    struct timespec stamp;
     MbCodes type;
     int complete;
 };
@@ -607,7 +616,7 @@ add_request (Server * server, Client * client, int pages, MbCodes op)
     request->sharing_client = NULL;
     request->responded_clients = NULL;
     request->next = NULL;
-    request->stamp = time (0);
+    MB_GET_TIME(&(request->stamp));
     request->type = op;
     request->complete = 0;
 
@@ -631,20 +640,30 @@ process_request_queue (Server * server)
     Request* previous = NULL;
     Request* request = server->queue;
 
-    while(request) {
-        if (request->complete) {
-            time_t now = time(0);
+    while(request)
+    {
+        if (request->complete) 
+        {
+            struct timespec now;
+            MB_GET_TIME(&now);
+            now.tv_nsec -= request->stamp.tv_nsec;
+            if (now.tv_nsec < 0)
+            {
+                now.tv_nsec += 1000000000;
+                now.tv_sec--;
+            }
+            now.tv_sec -= request->stamp.tv_sec;
 
             if (mb_encode_and_send (request->requesting_client->id,
                                     request->requesting_client->fd, 
                                     SHARE , request->acquired_pages ) == 0)
             {
-                fprintf (server->fp, "mbserver: processed client (%d)-\"%s\"  - %d of %d pages.\nWaiting Since %sNow: %s",
+                fprintf (server->fp, "mbserver: processed client (%d)-\"%s\"  - %d of %d pages in %ld.%09ld sec.\n",
                          request->requesting_client->id,
                          request->requesting_client->cmdline,
                          request->acquired_pages, 
                          request->acquired_pages + request->needed_pages,
-                         ctime (&request->stamp), ctime (&now));
+                         now.tv_sec, now.tv_nsec);
                 
                 request->requesting_client->pages += request->acquired_pages;
                 request->acquired_pages = 0;
@@ -827,7 +846,7 @@ dump_status (Server * server,
                      request->needed_pages,
                      request->needed_pages +
                      request->acquired_pages,
-                     ctime (&request->stamp));
+                     ctime (&(request->stamp.tv_sec)));
             if (request->sharing_client)
                 fprintf (fp, "mbserver:     Actively %s %d pages from client (%d)-\"%s\"\n",
                          request->sharing_client->share_type==REQUEST?
