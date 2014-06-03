@@ -40,6 +40,8 @@ typedef struct
     int pages;
     int reservable_pages;
     int requestable_pages;
+    int requested_pages;
+    int reserved_pages;
     int shutdown;
     MbCodes preresponse;
     MbCodes postresponse;
@@ -136,10 +138,11 @@ static void* clientThread(void* param)
 
             switch (code) {
                 case REQUEST:
-                    reaped_pages = min(pages, tc->requestable_pages);
+                    reaped_pages = min(pages, tc->requestable_pages-
+                                       tc->requested_pages);
                     tc->pages -= reaped_pages;
-                    tc->requestable_pages -= reaped_pages;
-                    tc->reservable_pages -= reaped_pages;
+                    tc->requested_pages += reaped_pages;
+                    tc->reserved_pages += reaped_pages;
                     if (reaped_pages)
                         ret = mb_client_send (tc->client, SHARE, reaped_pages);
                     else
@@ -147,13 +150,14 @@ static void* clientThread(void* param)
 		    FAIL_UNLESS(ret == 0);
                     break;
                 case RESERVE:
-                    reaped_pages = min(pages, tc->requestable_pages);
-                    if (reaped_pages < pages)
-                        reaped_pages = min(pages, tc->reservable_pages);
+                    reaped_pages = min(pages, tc->reservable_pages-
+                                       tc->reserved_pages);
                     if (reaped_pages == pages)
                     {
-                        tc->requestable_pages -= min(reaped_pages, tc->requestable_pages);
-                        tc->reservable_pages -= reaped_pages;
+                        tc->requested_pages += min(reaped_pages, 
+                                                   tc->requestable_pages-
+                                                   tc->requested_pages);
+                        tc->reserved_pages += reaped_pages;
                         tc->pages -= reaped_pages;
                         ret = mb_client_send (tc->client, SHARE, reaped_pages);
                     }
@@ -163,16 +167,16 @@ static void* clientThread(void* param)
                     break;
                 case SHARE:
                     tc->pages += pages;
+                    tc->requestable_pages += pages;
                     tc->reservable_pages += pages;
-                    tc->requestable_pages += pages;                    
                     break;
                 case RETURN:
                     tc->pages += pages;
-                    tc->reservable_pages += pages;
-                    tc->requestable_pages += pages;
+                    tc->requested_pages -= min(pages, tc->requested_pages);
+                    tc->reserved_pages -= pages;
                     break;
                 case QUERY_AVAILABLE:
-                    pages = tc->reservable_pages;
+                    pages = tc->reservable_pages-tc->reserved_pages;
                     ret = mb_client_send (tc->client, AVAILABLE, pages);
 		    FAIL_UNLESS(ret == 0);
                     break;
@@ -218,6 +222,7 @@ static void* clientThread(void* param)
 static void set_pages(TestClient* tc, int pages)
 {
     tc->requestable_pages = tc->reservable_pages = tc->pages = pages;
+    tc->requested_pages = tc->reserved_pages = 0;
 }
 
 static TestClient* createTestClient(int id, int is_bidi, int pages)
@@ -584,6 +589,24 @@ int testNormalReserve()
     FAIL_UNLESS(page_count(source) == 2);
     FAIL_UNLESS(mb_client_query_server(sink->client) == 0);
 
+    // Return all pages to server
+    clearServerPostResponse(source);
+    rc = mb_client_return_pages(sink->client, 13);
+    FAIL_UNLESS(waitForServerPostResponse(source) == RETURN);
+
+    FAIL_UNLESS(rc == 0);
+    FAIL_UNLESS(page_count(sink) == 0);
+    FAIL_UNLESS(page_count(source) == 10);
+    FAIL_UNLESS(mb_client_query_server(sink->client) == 5);
+
+    // Reserve more pages than are requestable
+    rc = mb_client_reserve_pages(sink->client, 10);
+
+    FAIL_UNLESS(rc == 10);
+    FAIL_UNLESS(page_count(sink) == 10);
+    FAIL_UNLESS(page_count(source) == 5);
+    FAIL_UNLESS(mb_client_query_server(sink->client) == 0);
+    
     // Return all pages to server
     clearServerPostResponse(source);
     rc = mb_client_return_pages(sink->client, 13);
