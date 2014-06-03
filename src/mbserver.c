@@ -217,7 +217,7 @@ has_client_responded(Client* client, Request* request)
 }
 
 static void
-mark_client_responded(Server* server, Request* request, Client* client, MbCodes code)
+mark_client_responded(Server* server, Request* request, Client* client)
 {
     ClientNode* node = request->responded_clients;
     while (node) {
@@ -239,7 +239,7 @@ mark_client_responded(Server* server, Request* request, Client* client, MbCodes 
         node->client = client;
     }
 
-    node->code = code;
+    node->code = client->share_type;
     request->sharing_client = NULL;
 
     server->updates |= CLIENT_REQUEST;
@@ -328,8 +328,7 @@ request_pages (Server * server)
                 request = server->queue;
                 while (request) {
                     if (request->sharing_client == client) {
-                        mark_client_responded(server, request, client, 
-                                              client->share_type);
+                        mark_client_responded(server, request, client);
                     }
                     request = request->next;
                 }
@@ -617,8 +616,7 @@ process_solicited_pages(Server* server, Client* client, int shared_pages)
             request->acquired_pages += pages;
             request->needed_pages -= pages;
             shared_pages -= pages;
-            mark_client_responded(server, request, client, 
-                                  client->share_type);
+            mark_client_responded(server, request, client);
             if (request->needed_pages == 0)
                 request_complete(server, request);
         }
