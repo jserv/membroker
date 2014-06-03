@@ -266,16 +266,37 @@ request_pages (Server * server)
     Client* client = NULL;
 
     while (request) {
+        /*
+         * If the request already has an outstanding share or has already been
+         *  marked complete, skip it
+         */
         if (request->sharing_client == NULL && !request->complete) {
             int wait = 0;
             client = server->client_list;
 
-            while (client) {
+            /* For each client... */
+            while (client)
+            {
+                /* 
+                 * Only ask clients to share pages that meet these conditions:
+                 *
+                 * - is bidirectional
+                 * - has not already responded to this request at the present 
+                 *   anxiety level
+                 * - is not the requesting client
+                 * - is not already processing an outstanding share query for 
+                 *   another request
+                 */
                 MbCodes last_response = has_client_responded(client, request);
                 if (is_bidirectional(client) &&
                     last_response != request->type &&
                     client != request->requesting_client &&
-                    request->sharing_client == NULL) {
+                    request->sharing_client == NULL)
+                {
+                    /*
+                     * If this is a blocking client, set the wait flag so
+                     * we don't prematurely mark the request complete.
+                     */
                     if (client->active_request) {
                         if (client->active_request->type == REQUEST
                             && request->type == RESERVE)
@@ -286,14 +307,32 @@ request_pages (Server * server)
                             wait = 1;
                     } else {
                         MbCodes type = request->type;
-                        if (type == RESERVE && is_source(client)
-                            && last_response == INVALID)
+
+                        /*
+                         * If the request is RESERVing pages and this is a 
+                         * source client that has not already responded, 
+                         * downgrade the share query to a REQUEST to start with
+                         */
+                        if (type == RESERVE && is_source(client) && 
+                            last_response == INVALID)
                             type = REQUEST;
 
+                        /*
+                         * Initialize the client share parameters if this is
+                         * the first request in the queue to ask this client
+                         * for pages. 
+                         */
                         if (client->share_type == INVALID) {
                             client->share_type = type;
                             client->needed_pages = 0;
                         }
+
+                        /*
+                         * Finally!
+                         * If this client's share type matches the current
+                         * request, then it is OK for the request to query
+                         * the client for pages.
+                         */
                         if (client->share_type == type) {
                             client->needed_pages -= request->needed_pages;
                             request->sharing_client = client;
@@ -305,6 +344,10 @@ request_pages (Server * server)
                 client = client->next;
             }
 
+            /**
+             * If there are no more clients for this request to query, it's
+             * done.
+             */
             if (!wait)
                 request_complete (server, request);
         }
@@ -314,8 +357,20 @@ request_pages (Server * server)
     
     client = server->client_list;
 
-    while (client) {
-        if (is_share_pending(client)) {
+    /*
+     * Now that we've decided which requests are going to query which clients
+     * for pages, we need to send out the queries to each client...
+     */
+    while (client)
+    {
+        /**
+         * Skip any clients that don't have a pending share query
+         */
+        if (is_share_pending(client))
+        {
+            /*
+             * Send the query and mark it outstanding
+             */
             set_share_outstanding(client);
             if (mb_encode_and_send (client->id, client->fd,
                                     client->share_type, 
@@ -324,7 +379,17 @@ request_pages (Server * server)
                 fprintf (server->fp, "mbserver: %s %d pages from %s (%d)\n", 
                          client->share_type==REQUEST?"request":"reserve",
                          client->needed_pages, client->cmdline, client->id);
-            } else {
+            } 
+            else
+            {
+                /*
+                 * If the query fails for some reason, treat the client as
+                 * having responded with no pages so the request can move on
+                 * to the next client. 
+                 *
+                 * TODO: Should we unilaterally delete the client in this case?
+                 * What about any pages it had?
+                 */
                 request = server->queue;
                 while (request) {
                     if (request->sharing_client == client) {
