@@ -37,8 +37,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#define min(a,b) a < b ? a:b
-#define max(a,b) a > b ? a:b
+#define min(a,b) ((a) < (b)) ? (a) : (b)
+#define max(a,b) ((a) > (b)) ? (a) : (b)
 
 typedef struct mbclient_struct {
     int id;
