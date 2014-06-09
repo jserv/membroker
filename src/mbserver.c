@@ -1008,11 +1008,13 @@ mbs_init()
 
     if (bind (fd, (struct sockaddr *) &addr, sizeof (addr)) == -1){
         perror ("bind");
+        close(fd);
         return NULL;
     }
 
     if (listen (fd, 20) == -1) {
         perror ("listen");
+        close(fd);
         return (NULL);
     }
 
@@ -1029,16 +1031,22 @@ mbs_init_with_fd (int fd)
 
     if (server->client_listen_fd == -1) {
         fprintf (stderr, "mbserver: invalid fd\n");
+        close (fd);
+        free (server);
         return NULL;
     }
 
     socklen = sizeof (server->sock);
     if (0 != getsockname (server->client_listen_fd, (struct sockaddr *)&server->sock, &socklen)) {
         perror ("getsockname");
+        close (fd);
+        free (server);
         return NULL;
     }
     if (server->sock.sun_family != AF_UNIX) {
         fprintf (stderr, "Bad file descriptor passed to mbs_init_with_fd() -- not a unix domain socket\n");
+        close (fd);
+        free (server);
         return NULL;
     }
 
@@ -1051,6 +1059,8 @@ mbs_init_with_fd (int fd)
 
     if (server->debug_listen_fd == -1) {
         perror ("socket");
+        close (fd);
+        free (server);
         return NULL;
     }
 
