@@ -452,40 +452,29 @@ create_client (Server * server, int id, int fd, unsigned int param)
 
     client->pid = credentials.pid;
 
-    memset (buf, 0, sizeof(buf));
     snprintf (buf, sizeof(buf), "/proc/%d/cmdline", client->pid);
 
     do {
         pid_fd = open (buf, O_RDONLY);
     } while (pid_fd == -1 && errno == EINTR);
 
-    if (pid_fd == -1) {
-        memset (buf, 0, sizeof (buf));
+    if (pid_fd == -1){
         snprintf (buf, sizeof(buf), "unknown");
+
     } else {
         char * cmd;
         int bytes = 0;
-        struct stat st_buff;
 
-        if (0 == fstat ( pid_fd, &st_buff) ) {
-            int length = min((int)sizeof(buf)-1, st_buff.st_size);
-            do{
-                int rb = read (pid_fd, &buf[bytes], length);
-                if (rb < 0 && errno == EINTR) 
-                    continue;
-                if (rb > 0)
-                {
-                    bytes += rb;
-                    length -= rb;
-                }
-                else
-                    break;
-            } while(length);
-            cmd = strrchr (buf, '/');
+        do {
+            bytes = read (pid_fd, buf, sizeof (buf) - 1);
+        } while (bytes < 0 && errno == EINTR);
 
-            if (cmd){
-                memmove (buf, cmd+1, strlen(cmd));
-            }
+        buf[bytes] = '\0';
+
+        cmd = strrchr (buf, '/');
+
+        if (cmd){
+            memmove (buf, cmd+1, strlen (cmd));
         }
 
         close (pid_fd);
