@@ -418,13 +418,71 @@ request_pages (Server * server)
 }
 
 
+static char *
+get_cmdline_for (pid_t pid)
+{
+    int fd;
+    char fname[64];
+    char buffer[1024];
+
+    snprintf (fname, sizeof (fname), "/proc/%d/cmdline", pid);
+
+    do {
+        fd = open (fname, O_RDONLY);
+    } while (fd == -1 && errno == EINTR);
+
+    if (fd == -1) {
+        snprintf (buffer, sizeof (buffer), "unknown");
+
+    } else {
+        char * cmd;
+        int bytes = 0;
+
+        do {
+            /* the cmdline file is not necessarily terminated.  Leave space. */
+            bytes = read (fd, buffer, sizeof (buffer) - 1);
+        } while (bytes < 0 && errno == EINTR);
+
+        if (bytes < 0) {
+            /* holy carp, how'd that happen? */
+            snprintf (buffer, sizeof (buffer), "unknown");
+
+        } else {
+            /* ensure termination */
+            buffer[bytes] = '\0';
+        }
+
+        close (fd);
+
+        /*
+         * /proc/pid/cmdline contains the entire command line, as fed to
+         * main()...  It has nul chars between the arguments.  So, we
+         * probably also read quite a lot of the arguments, but strlen(),
+         * strrchr(), and other string functions will stop at the first nul,
+         * which is the end of the program name.
+         *
+         * For a client that may have many instances of the same executable,
+         * the full command line could be very useful...  but just as easily
+         * could be a long string of unhelpful junk.
+         */
+
+        /* Strip off the leading path. */
+        cmd = strrchr (buffer, '/');
+
+        if (cmd) {
+            memmove (buffer, cmd + 1, strlen (cmd));
+        }
+    }
+
+    assert (buffer);
+
+    return strdup (buffer);
+}
+
 static Client *
 create_client (Server * server, int id, int fd, unsigned int param)
 {
     Client * client = (Client *) calloc (1, sizeof (*client));
-
-    char buf[1025];
-    int pid_fd;
 
     struct ucred credentials;
     socklen_t cred_len = sizeof (credentials);
@@ -451,36 +509,6 @@ create_client (Server * server, int id, int fd, unsigned int param)
     }
 
     client->pid = credentials.pid;
-
-    snprintf (buf, sizeof(buf), "/proc/%d/cmdline", client->pid);
-
-    do {
-        pid_fd = open (buf, O_RDONLY);
-    } while (pid_fd == -1 && errno == EINTR);
-
-    if (pid_fd == -1){
-        snprintf (buf, sizeof(buf), "unknown");
-
-    } else {
-        char * cmd;
-        int bytes = 0;
-
-        do {
-            bytes = read (pid_fd, buf, sizeof (buf) - 1);
-        } while (bytes < 0 && errno == EINTR);
-
-        buf[bytes] = '\0';
-
-        cmd = strrchr (buf, '/');
-
-        if (cmd){
-            memmove (buf, cmd+1, strlen (cmd));
-        }
-
-        close (pid_fd);
-    }
-
-
     client->id = id;
     client->fd = fd;
     client->source_pages = param & 0x7fffffff;
@@ -489,7 +517,7 @@ create_client (Server * server, int id, int fd, unsigned int param)
     else
         set_normal(client);
 
-    client->cmdline = strdup (buf);
+    client->cmdline = get_cmdline_for (client->pid);
     if (client->cmdline == NULL)
     {
         perror("create_client(): strdup()");
