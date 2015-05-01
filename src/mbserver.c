@@ -807,11 +807,6 @@ initialize_server()
         exit (1);
     }
 
-    if (env) {
-        server->source_pages = 
-        server->pages = atoi (env) / EXEC_PAGESIZE;
-    }
-
 #if LOGFILE
     server->fp = fopen(logfile, "w");
 #else
@@ -819,7 +814,12 @@ initialize_server()
 #endif
     setlinebuf (server->fp);
 
-    fprintf (server->fp, "Initialized membroker with %d pages\n", server->pages);
+    if (env) {
+        server->source_pages =
+            server->pages = atoi (env) / EXEC_PAGESIZE;
+
+        fprintf (server->fp, "Initialized membroker with %d pages (from %s)\n", server->pages, env);
+    }
 
     return server;
 }
@@ -1121,6 +1121,10 @@ void
 mbs_set_pages(Server* server, int pages)
 {
     server->source_pages = server->pages = pages;
+
+    if (server->fp)
+        fprintf (server->fp, "Set membroker server pages to %d\n",
+                 pages);
 }
 
 void*
