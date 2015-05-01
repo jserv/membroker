@@ -78,6 +78,7 @@ free_client(mbclient* client)
     client->id = 0;
     client->pages = 0;
     client->source_pages = 0;
+    client->sock.sun_family = 0;
     
     while (needle){
         if (needle->next == client )
