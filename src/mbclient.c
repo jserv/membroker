@@ -312,7 +312,7 @@ client_register(mbclient* client)
 
     fd = contact (client);
 
-    if (fd == -1)
+    if (fd < 0)
         return MB_IO;
 
     client->source_pages &= 0x7fffffff;
