@@ -3,10 +3,15 @@
 Description=Memory Broker Service
 Requires=membroker.socket
 
+# the membroker script uses the data file that memory-tuning creates,
+# to figure out what memory size to give to mbserver.
+Wants=memory-tuning.service
+After=memory-tuning.service
+
 [Service]
 # Every process needs have permission to connect to the socket
 UMask=0
 # Needed for LXK_RUNTIME_DIR environment variable
 EnvironmentFile=/etc/dirs_environment
 
-ExecStart=@bindir@/mbserver
+ExecStart=@bindir@/membroker

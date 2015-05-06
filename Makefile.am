@@ -1,5 +1,6 @@
 TESTS =
 bin_PROGRAMS =
+bin_SCRIPTS =
 noinst_PROGRAMS =
 lib_LTLIBRARIES =
 noinst_LTLIBRARIES =
@@ -30,6 +31,8 @@ mbserver_SOURCES = \
 	src/main.c \
 	src/mbserver.h
 mbserver_LDADD = libmbs.la libmembroker.la
+
+bin_SCRIPTS += src/membroker
 
 noinst_PROGRAMS += mbctest
 mbctest_SOURCES = \

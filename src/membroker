@@ -1,0 +1,9 @@
+#!/bin/bash
+
+except_pages=`cat /run/memory-tuning/non-membroker-pages`
+
+if [ -n "$except_pages" ] ; then
+	args="--all-except ${except_pages}p"
+fi
+
+exec mbserver $args
