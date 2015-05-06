@@ -176,13 +176,17 @@ create_uds(mbclient* client)
     return fd;
 }
 
+/*
+ * Return the fd of the client connection.
+ * Returns -1 (a bad fd) on failure.
+ */
 static int
 contact(mbclient* client)
 {
     int fd = create_uds (client);
 
-    if (fd == -1)
-        return MB_IO;
+    if (fd < 0)
+        return -1;
 
     if (client->sock.sun_family != AF_UNIX) 
     {
@@ -192,7 +196,7 @@ contact(mbclient* client)
         
         if (connect (fd, (struct sockaddr *) &(client->sock), sizeof (struct sockaddr_un)) == -1) {
             perror ("connect");
-            return MB_IO;
+            return -1;
         }
     }
 
@@ -254,7 +258,7 @@ mb_client_return_pages(MbClientHandle client, int pages)
     if (pages > 0) {
         fd = create_uds ((mbclient*)client);
         
-        if(fd == -1)
+        if (fd < 0)
             return MB_IO;
     
         pages = min(pages, ((mbclient*)client)->pages);
@@ -272,7 +276,7 @@ mb_client_terminate(MbClientHandle client)
     
     fd = create_uds ((mbclient*)client);
     
-    if(fd == -1)
+    if (fd < 0)
         return MB_IO;
     
     ret = mb_encode_and_send (((mbclient*)client)->id, fd, TERMINATE, 0);
@@ -299,7 +303,7 @@ mb_client_status(MbClientHandle client)
     
     fd = contact ((mbclient*)client);
     
-    if(fd == -1)
+    if (fd == -1)
         return MB_IO;
     
     return mb_encode_and_send (((mbclient*)client)->id, fd, STATUS, 0);
@@ -313,7 +317,7 @@ client_register(mbclient* client)
 
     fd = contact (client);
 
-    if (fd < 0)
+    if (fd == -1)
         return MB_IO;
 
     client->source_pages &= 0x7fffffff;
