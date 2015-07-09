@@ -824,24 +824,52 @@ initialize_server()
     return server;
 }
 
+static double
+pages_to_megabytes (int pages)
+{
+    return ((double) pages) * EXEC_PAGESIZE / 1024 / 1024;
+}
+
 static void
 dump_status (Server * server,
              FILE * fp)
 {
     Client * client;
+    int total_pages = get_total_pages (server);
+    char scratch[64];
 
-    fprintf (fp, "mbserver: STATUS server pages = %d of %d;  total pages = %d\n",
-             server->pages, server->source_pages,
-             get_total_pages(server));
+    if (server->source_pages) {
+        snprintf (scratch, sizeof (scratch), "%.3g%%",
+                  server->pages * 100.0 / server->source_pages);
+    } else {
+        /* Don't divide by zero.  This will happen when the server owns no
+         * pages, and relies on a source client to provide them. */
+        snprintf (scratch, sizeof (scratch), "--");
+    }
+
+    fprintf (fp, "mbserver: STATUS server pages = %d of %d (%s);  total pages = %d  (%.1f M)\n",
+             server->pages, server->source_pages, scratch, /* percentage */
+             total_pages, pages_to_megabytes (total_pages));
     client = server->client_list;
     fprintf (fp, "mbserver: CLIENTS\n");
     while (client){
-        fprintf (fp, "mbserver: (%d)-\"%s\" - %s: %d of %d pages\n",
+        /* We want to show how much of the total each client has, but it's
+         * possible for the total to be zero, so we have some icky logic. */
+        if (total_pages) {
+            snprintf (scratch, sizeof (scratch), ", %.3g%% of total",
+                      client->pages * 100.0 / total_pages);
+        } else {
+            scratch[0] = '\0'; /* leave it blank */
+        }
+        fprintf (fp, "mbserver: (%d)-\"%s\" - %s: %d of %d pages (%.1f M)%s\n",
                  client->id,
                  client->cmdline,
                  is_source(client)?"source":(is_bidirectional(client)?"bidi":"sink"),
                  client->pages,
-                 client->source_pages);
+                 client->source_pages,
+                 pages_to_megabytes (client->pages),
+                 scratch); /* percentage report */
+
         if (client->active_request)
             fprintf (fp, "mbserver:     %s %d of %d pages\n",
                      client->active_request->type==REQUEST?
