@@ -32,6 +32,10 @@ mbserver_SOURCES = \
 	src/mbserver.h
 mbserver_LDADD = libmbs.la libmembroker.la
 
+bin_PROGRAMS += mbutil
+mbutil_SOURCES = src/mbutil.c
+mbutil_LDADD = libmbs.la libmembroker.la
+
 bin_SCRIPTS += src/membroker
 
 noinst_PROGRAMS += mbctest

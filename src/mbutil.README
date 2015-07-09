@@ -1,0 +1,49 @@
+
+mbutil - Interact with membroker from the command line
+
+This very simple tool is intended for use from the shell.  For example,
+you can use this tool to steal most of the membroker memory from the system
+before starting normal jobs, to stress-test the system's low-memory error
+handling.  Or, a wrapper script could use this tool to reserve membroker
+memory for some other membroker-agnostic program.
+
+Usage:
+
+    mbutil - interact with membroker
+    Usage:  mbutil command [amount]
+       reserve AMOUNT   get and hold all-or-nothing
+       request AMOUNT   get and hold as much as AMOUNT
+       query            print available and exit
+       help             this message
+       AMOUNT is a number, optionally followed by units
+           G     gigabytes
+           M     megabytes
+           K     kilabytes
+           p     pages (default)
+           %     percentage of total memory (0 to 100)
+
+    $ mbutil query
+    total      657489 p (2568.3 M)
+    server     511691 p (1998.8 M)
+    client          0 p (0.0 M)
+
+    $ mbutil reserve 200M
+    reserve '200M' -> 51200 pages
+    Got 51200 of 51200 pages
+    Interrupt (^C) to release memory to membroker.
+    ^C
+
+    $ mbutil request 1.5G
+    request '1.5G' -> 393216 pages
+    Got 393216 of 393216 pages
+    Interrupt (^C) to release memory to membroker.
+    ^C
+
+    $ mbutil reserve 75%
+    75% of total 657489 pages is 493116 pages (1926.23 M)
+    reserve '75%' -> 493116 pages
+    Got 493116 of 493116 pages
+    Interrupt (^C) to release memory to membroker.
+    ^C
+
+
