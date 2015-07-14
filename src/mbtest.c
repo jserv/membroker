@@ -8,6 +8,10 @@
 
 #define min(a,b) a < b ? a:b
 
+void printHelp()
+{
+    printf("Valid Commands: reserve|request|return [pages], query, end\n");
+}
 
 int 
 main(void)
@@ -30,7 +34,7 @@ main(void)
         memset (buf, 0, 500);
         pages = 0;
         
-        printf ("Enter Command:\n");
+        printf ("Enter Command, '?' for help:\n ");
 
         do{
             conv += read ( fileno(stdin), &buf[conv] , sizeof(char));
@@ -77,8 +81,11 @@ main(void)
                 printf("membroker pages: %d.  My Pages: %d\n", mb_pages, my_pages);
         } else if (conv == 1 && 0 == strcmp (command, "status")){
             mb_status ();
+        } else if ( conv == 1 && 0 == strcmp (command, "?")) {
+            printHelp();
         } else if ( conv == 1 && 0 != strcmp (command, "end")) {
-            printf ("Unknown command\nValid Commands: reserve|request|return [pages], query, end\n");
+            printf ("Unknown command\n");
+            printHelp();
         }
 
     } 
