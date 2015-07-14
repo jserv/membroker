@@ -34,7 +34,8 @@ main(void)
         memset (buf, 0, 500);
         pages = 0;
         
-        printf ("Enter Command, '?' for help:\n ");
+        printf ("Enter Command, '?' for help:\n> ");
+        fflush(stdout);
 
         do{
             conv += read ( fileno(stdin), &buf[conv] , sizeof(char));
@@ -88,6 +89,7 @@ main(void)
             printHelp();
         }
 
+        printf("\n");
     } 
     while (0 != strcmp (command, "end"));
 
