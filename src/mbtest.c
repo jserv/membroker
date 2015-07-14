@@ -14,13 +14,62 @@ void printHelp()
            "                query-server, query-total, end\n");
 }
 
-int 
-main(void)
+void printUsage(const char* name)
+{
+    printf("%s [--help]\n"
+           "\n"
+           "This program acts as an interactive client for membroker, allowing\n"
+           "one to request and return pages to the membroker pool, and query\n"
+           "the current state of membroker and available pages.\n"
+           "\n"
+           "Below is a summary of the commands available:\n"
+           "  reserve [pages]: Makes a high-anxiety request for memory pages from\n"
+           "                   membroker. Membroker will return either 0 pages or\n"
+           "                   the full amount requested, and will make every effort\n"
+           "                   to procure memory from other clients, possibly\n"
+           "                   blocking for an indefinitely long period of time.\n"
+           "\n"
+           "  request [pages]: Makes a low-anxiety request for memory pages from\n"
+           "                   membroker. Membroker may return fewer pages than\n"
+           "                   requested and will only attempt to procure easily\n"
+           "                   available memory but will not block indefinitely.\n"
+           "\n"
+           "  return [pages]:  Return a number of pages previously requested to\n"
+           "                   membroker.\n"
+           "\n"
+           "  query:           Print this client's current page balance (i.e. the\n"
+           "                   number of source pages it has made available to\n"
+           "                   membroker - the number of pages membroker has\n"
+           "                   borrowed + the number of pages the client has\n"
+           "                   borrowed)\n"
+           "\n"
+           "  query-server:    print the total number of pages currently in\n"
+           "                   membroker's own pool.\n"
+           "\n"
+           "  query-total:     print the total number of pages membroker could\n"
+           "                   theorectically loan out; equal to the sum of its own\n"
+           "                   pages plus the maximum number of source pages\n"
+           "                   contributed by all the source clients.\n"
+           "\n"
+           "  end:             Terminate the connection to membroker and exit\n"
+           "\n",
+           name
+    );
+}
+
+int
+main(int argc, const char** argv)
 {
 
     char buf[500];
     char command[500];
     int pages;
+
+    if(argc > 1)
+    {
+        printUsage(argv[0]);
+        return 0;
+    }
 
     int my_pages = 0;
 
