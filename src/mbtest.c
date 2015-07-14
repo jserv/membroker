@@ -10,7 +10,8 @@
 
 void printHelp()
 {
-    printf("Valid Commands: reserve|request|return [pages], query, end\n");
+    printf("Valid Commands: reserve|request|return [pages], query,\n"
+           "                query-server, query-total, end\n");
 }
 
 int 
@@ -80,6 +81,16 @@ main(void)
 
             if (mb_pages >= 0)
                 printf("membroker pages: %d.  My Pages: %d\n", mb_pages, my_pages);
+        } else if (conv == 1 && 0 == strcmp (command, "query-server")){
+            int mb_pages = mb_query_server ();
+
+            if (mb_pages >= 0)
+                printf("membroker server available pages: %d.\n", mb_pages);
+        } else if (conv == 1 && 0 == strcmp (command, "query-total")){
+            int mb_pages = mb_query_total ();
+
+            if (mb_pages >= 0)
+                printf("membroker server theoretical total pages: %d.\n", mb_pages);
         } else if (conv == 1 && 0 == strcmp (command, "status")){
             mb_status ();
         } else if ( conv == 1 && 0 == strcmp (command, "?")) {
