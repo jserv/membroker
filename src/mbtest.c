@@ -10,8 +10,8 @@
 
 void printHelp()
 {
-    printf("Valid Commands: reserve|request|return [pages], query,\n"
-           "                query-server, query-total, end\n");
+    printf("Valid Commands: reserve|request|return [pages], reserve-all,\n"
+           "                query, query-server, query-total, end\n");
 }
 
 void printUsage(const char* name)
@@ -28,6 +28,9 @@ void printUsage(const char* name)
            "                   the full amount requested, and will make every effort\n"
            "                   to procure memory from other clients, possibly\n"
            "                   blocking for an indefinitely long period of time.\n"
+           "\n"
+           "  reserve-all      Iteratively makes high anxiety requests to membroker,\n"
+           "                   eventually reserving all possible pages.\n"
            "\n"
            "  request [pages]: Makes a low-anxiety request for memory pages from\n"
            "                   membroker. Membroker may return fewer pages than\n"
@@ -116,7 +119,31 @@ main(int argc, const char** argv)
             } else {
                 printf ("request pages returns %d\n", reaped);
             }
+        }else if (conv == 1 && 0 == strcmp (command, "reserve-all")) {
+            int total_reaped = 0;
+            int incremetal_reaped = 0;
 
+            int attempt = mb_query_total();
+
+            // Keep getting pages until we cannot get anymore
+            while(attempt > 0)
+            {
+                incremetal_reaped = mb_reserve_pages (attempt);
+                total_reaped += incremetal_reaped;
+
+                // Could not get this many pages, try half as many
+                if(incremetal_reaped == 0)
+                {
+                    attempt /= 2;
+                }
+            }
+
+            if (total_reaped > 0){
+                my_pages += total_reaped;
+                printf("Got %d pages.  Total: %d\n", total_reaped, my_pages);
+            } else {
+                printf ("request pages returns %d\n", total_reaped);
+            }
         } else if (conv == 2 && 0 == strcmp (command, "return")) {
             int ret_pages = min(my_pages, pages);
 
