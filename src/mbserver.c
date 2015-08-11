@@ -833,6 +833,7 @@ process_connection(Server * server, int fd)
 
             case TERMINATE:
                 printf ("mbserver: client (%d)-\"%s\" terminated, reclaimed %d pages\n", client->pid, client->cmdline, client->pages);
+		mb_encode_and_send (id, fd, TERMINATE, 0);
                 free_client (server, client);
                 update_server(server);
 

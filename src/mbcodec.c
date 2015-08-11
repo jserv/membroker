@@ -56,7 +56,7 @@ mb_encode_and_send(int id, int fd, MbCodes code, int param)
     i32_encode (&buf[sizeof(int) * 2], param);
 
     while ( total < size ){
-        int ret = send (fd, buf + total, size - total, 0);
+        int ret = send (fd, buf + total, size - total, MSG_NOSIGNAL);
         if (ret == -1 ){
             perror ("send");
             return -1;

@@ -219,11 +219,19 @@ mb_client_return_pages(MbClientHandle client, int pages)
 int
 mb_client_terminate(MbClientHandle client)
 {
+    int ret, param;
+    MbCodes code;
     int fd = create_uds ((mbclient*)client);
 
     if(fd == -1) return -1;
 
-    mb_encode_and_send (((mbclient*)client)->id, fd, TERMINATE, 0);
+    ret = mb_encode_and_send (((mbclient*)client)->id, fd, TERMINATE, 0);
+
+    if (!ret) {
+	do {
+	    ret = mb_client_receive(client, &code, &param);
+	} while (ret > 0 && code != TERMINATE);
+    }
 
     close (fd);
 
