@@ -260,7 +260,7 @@ static TestClient* createTestClient(int id, int is_bidi, int pages)
 
 static void destroyTestClient(TestClient* tc, int terminate)
 {
-    int rc;
+    int rc, id;
 
     printf("Destroying client %d...\n", 
            mb_client_id(tc->client));
@@ -279,9 +279,13 @@ static void destroyTestClient(TestClient* tc, int terminate)
                mb_client_id(tc->client));
     }
 
+    id = mb_client_id(tc->client);
+
     if (terminate) {
         if (mb_client_terminate(tc->client))
             exit(-1);
+	else
+	    tc->client = NULL;
     }
     else {
         close(mb_client_fd(tc->client));
@@ -290,8 +294,7 @@ static void destroyTestClient(TestClient* tc, int terminate)
     pthread_mutex_destroy(&(tc->mutex));
     pthread_cond_destroy(&(tc->cond));
 
-    printf("Destroyed client %d\n", 
-           mb_client_id(tc->client));
+    printf("Destroyed client %d\n", id);
 
     free(tc);    
 }
