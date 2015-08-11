@@ -814,9 +814,8 @@ int testReturnOnRequest()
 
     mb_client_receive(sink2->client, &code, &param);
 
-    //    FAIL_UNLESS(page_count(sink2->client) == 4);
     FAIL_UNLESS(code == SHARE);
-    FAIL_UNLESS(param = 4);
+    FAIL_UNLESS(param == 4);
 
     clearServerPostResponse(source);
     resumeClient(source);
@@ -961,7 +960,6 @@ int testClientTermination()
 
     mb_client_receive(sink->client, &code, &param);
 
-    //    FAIL_UNLESS(page_count(source->client) == 0);
     FAIL_UNLESS(code == SHARE);
     FAIL_UNLESS(param == 0);
 
@@ -987,6 +985,8 @@ int testIoErrors()
 
     mb_client_send(sink->client, REQUEST, 2);
 
+    flushClient(sink);
+
     resumeClient(source);
 
     mb_client_receive(sink->client, &code, &param);
@@ -1001,6 +1001,15 @@ int testIoErrors()
     closeTestClient(source);
 
     mb_client_request_pages(sink->client, 5);
+
+    FAIL_UNLESS(page_count(sink) == 1);
+    FAIL_UNLESS(mb_client_query_total(sink->client) == 0);
+    FAIL_UNLESS(mb_client_query_server(sink->client) == -1);
+
+    mb_client_return_pages(sink->client, 1);
+
+    FAIL_UNLESS(mb_client_query_total(sink->client) == 0);
+    FAIL_UNLESS(mb_client_query_server(sink->client) == 0);
 
     terminateTestClient(sink);
     return 0;

@@ -88,7 +88,7 @@ struct client{
     int pid;
     int fd;
     int pages;
-    unsigned int source_pages;
+    int source_pages;
     char * cmdline;
     struct request * active_request;
     MbCodes share_type;
@@ -108,8 +108,8 @@ struct clientNode
 typedef struct clientNode ClientNode;
 
 struct request {
-    unsigned int needed_pages;
-    unsigned int acquired_pages;
+    int needed_pages;
+    int acquired_pages;
     Client * requesting_client;
     Client * sharing_client;
     ClientNode* responded_clients;
@@ -130,7 +130,7 @@ struct server{
     struct sockaddr_un sock;
     int client_listen_fd;
     int shutdown;
-    unsigned int pages;
+    int pages;
     unsigned int source_pages;
     Client * client_list;
     Request * queue;
@@ -569,7 +569,7 @@ process_unsolicited_pages(Server* server)
 
     while (request && server->pages > 0) {
         if (request->needed_pages) {
-            int pages = min(server->pages, request->needed_pages);
+            int pages = min(server->pages, (int)request->needed_pages);
                 request->acquired_pages += pages;
                 request->needed_pages -= pages;
                 server->pages -= pages;            
@@ -588,8 +588,7 @@ process_solicited_pages(Server* server, Client* client, int shared_pages)
     while (request)
     {
         if (request->sharing_client == client) {
-            int pages = min((unsigned int)shared_pages, 
-                            request->needed_pages);
+            int pages = min(shared_pages, request->needed_pages);
             request->acquired_pages += pages;
             request->needed_pages -= pages;
             shared_pages -= pages;
@@ -619,7 +618,7 @@ return_shared_pages (Server * server)
         Client * iter = server->client_list;
         while (iter) {
             if (is_source(iter) && iter->pages < 0) {
-                int pages = min(server->pages, (unsigned) (-iter->pages));
+                int pages = min(server->pages, -iter->pages);
                 mb_encode_and_send (iter->pid, iter->fd, RETURN, pages);  
                 fprintf (server->fp, "mbserver: return %d pages to (%d)-\"%s\"\n", pages, iter->pid, iter->cmdline);
                 server->pages -= pages;
@@ -763,7 +762,7 @@ process_connection(Server * server, int fd)
     int ret;
     int id;
     MbCodes op;
-    unsigned int val;
+    int val;
     Client * client; 
 
 
