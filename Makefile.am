@@ -22,7 +22,7 @@ pkginclude_HEADERS = \
 	src/mbclient.h \
 	src/mbserver.h
 
-noinst_LTLIBRARIES += libmbs.la
+lib_LTLIBRARIES += libmbs.la
 libmbs_la_SOURCES = src/mbserver.c
 
 bin_PROGRAMS += mbserver
