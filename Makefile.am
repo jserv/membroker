@@ -7,6 +7,7 @@ noinst_LTLIBRARIES =
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = membroker.pc
+pkgconfig_DATA = membrokerserver.pc
 
 systemdsystemunit_DATA = src/membroker.service src/membroker.socket
 
